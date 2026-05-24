@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantumVault — Post-Quantum Password Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="nav-icon">⬡</span>
+      <span class="nav-title">QuantumVault</span>
+      <span class="nav-badge">AES-256</span>
+    </div>
+    <div class="nav-user" id="nav-user" style="display:none">
+      <img id="nav-avatar" src="" alt="avatar" class="nav-avatar" />
+      <span id="nav-name" class="nav-name"></span>
+      <span class="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">synced</span></span>
+      <button class="btn-ghost" onclick="lockVault()">lock</button>
+      <button class="btn-ghost" onclick="signOut()">sign out</button>
+    </div>
+  </nav>
+
+  <!-- LOGIN SCREEN -->
+  <main id="screen-login" class="screen active">
+    <div class="login-wrap">
+      <div class="login-hero">
+        <div class="login-icon">⬡</div>
+        <h1>QuantumVault</h1>
+        <p class="login-sub">Your passwords, encrypted end-to-end.<br>Sign in with Google — no account setup needed.</p>
+      </div>
+      <button class="btn-google" onclick="signInWithGoogle()">
+        <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="login-features">
+        <div class="feat"><span>🔐</span><span>AES-256-GCM encrypted</span></div>
+        <div class="feat"><span>☁️</span><span>Synced via Firebase</span></div>
+        <div class="feat"><span>🧬</span><span>Zero-knowledge vault</span></div>
+        <div class="feat"><span>⚛️</span><span>Quantum-resistant</span></div>
+      </div>
+      <p class="login-note">Your passwords are encrypted <strong>before</strong> leaving your browser. Firebase only stores ciphertext — nobody can read your passwords, not even us.</p>
+    </div>
+  </main>
+
+  <!-- MASTER PASSWORD SCREEN (after Google login, before vault opens) -->
+  <main id="screen-master" class="screen">
+    <div class="unlock-wrap">
+      <img id="master-avatar" src="" alt="" class="unlock-avatar" />
+      <h1 id="master-greeting">Welcome back!</h1>
+      <p class="unlock-sub" id="master-sub">Enter your vault master password to decrypt your passwords.</p>
+      <div class="field unlock-field">
+        <label>Master Password</label>
+        <div class="input-wrap">
+          <input type="password" id="master-input" placeholder="Enter master password"
+            onkeydown="if(event.key==='Enter')submitMaster()" autocomplete="current-password" />
+          <button class="input-eye" onclick="toggleVis('master-input')">👁</button>
+        </div>
+      </div>
+      <p class="unlock-error" id="master-error"></p>
+      <div class="unlock-actions">
+        <button class="btn-primary" onclick="submitMaster()"><span>Unlock vault</span><span class="btn-arrow">→</span></button>
+        <button class="btn-ghost" onclick="signOut()">← sign out</button>
+      </div>
+      <p class="unlock-hint" id="new-vault-hint" style="display:none">
+        👋 First time here! This master password will encrypt your vault — remember it, it can't be recovered.
+      </p>
+    </div>
+  </main>
+
+  <!-- VAULT SCREEN -->
+  <main id="screen-vault" class="screen">
+    <div class="vault-layout">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="vault-stat">
+            <span class="stat-num" id="stat-total">0</span>
+            <span class="stat-label">passwords</span>
+          </div>
+        </div>
+        <div class="sidebar-mid">
+          <button class="sidebar-btn active" id="btn-all" onclick="filterAll(this)">All passwords</button>
+          <button class="sidebar-btn" onclick="openAddModal()">+ Add new</button>
+          <button class="sidebar-btn" onclick="openGenModal()">⚡ Generator</button>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="vault-info">
+            <p>Encrypted with <strong>AES-256-GCM</strong></p>
+            <p>Key via <strong>PBKDF2 · 310k rounds</strong></p>
+            <p>Stored on <strong>Firebase Firestore</strong></p>
+            <p>Zero-knowledge <strong>✓</strong></p>
+          </div>
+        </div>
+      </aside>
+      <div class="vault-main">
+        <div class="vault-toolbar">
+          <div class="search-wrap">
+            <span class="search-icon">⌕</span>
+            <input type="text" id="search-input" placeholder="Search — Ctrl+K" oninput="renderEntries()" />
+          </div>
+          <button class="btn-primary btn-sm" onclick="openAddModal()">+ add</button>
+        </div>
+        <div id="entries-list" class="entries-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ADD/EDIT MODAL -->
+  <div class="modal-overlay" id="modal-add" onclick="if(event.target===this)closeModal('modal-add')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-add-title">Add password</h3>
+        <button class="modal-close" onclick="closeModal('modal-add')">✕</button>
+      </div>
+      <div class="field"><label>Site / App <span class="req">*</span></label><input type="text" id="f-site" placeholder="e.g. Netflix" /></div>
+      <div class="field"><label>Username / Email <span class="req">*</span></label><input type="text" id="f-user" placeholder="you@example.com" autocomplete="off" /></div>
+      <div class="field">
+        <label>Password <span class="req">*</span></label>
+        <div class="input-wrap">
+          <input type="password" id="f-pass" placeholder="Password"
+            oninput="checkStrength(this,'f-bar','f-slabel')" autocomplete="new-password" />
+          <button class="input-eye" onclick="toggleVis('f-pass')">👁</button>
+          <button class="input-eye" style="right:2.4rem" onclick="fillGenerated()" title="Use generator">⚡</button>
+        </div>
+        <div class="strength-track"><div class="strength-bar" id="f-bar"></div></div>
+        <span class="field-hint" id="f-slabel">—</span>
+      </div>
+      <div class="field"><label>URL</label><input type="text" id="f-url" placeholder="https://" /></div>
+      <div class="field"><label>Notes</label><textarea id="f-notes" rows="2" placeholder="Any extra info…"></textarea></div>
+      <input type="hidden" id="f-id" />
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="saveEntry()">Save</button>
+        <button class="btn-secondary" onclick="closeModal('modal-add')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW MODAL -->
+  <div class="modal-overlay" id="modal-view" onclick="if(event.target===this)closeModal('modal-view')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="view-title">—</h3>
+        <button class="modal-close" onclick="closeModal('modal-view')">✕</button>
+      </div>
+      <div class="view-row">
+        <span class="view-label">username</span>
+        <span class="view-val" id="view-user">—</span>
+        <button class="copy-btn" onclick="copyEl('view-user')">copy</button>
+      </div>
+      <div class="view-row">
+        <span class="view-label">password</span>
+        <span class="view-val mono" id="view-pass-disp">••••••••</span>
+        <button class="copy-btn" onclick="copyHidden()">copy</button>
+        <button class="copy-btn" onclick="toggleViewPass()">show</button>
+      </div>
+      <input type="hidden" id="view-pass-real" />
+      <div class="view-row" id="view-url-row" style="display:none">
+        <span class="view-label">url</span>
+        <span class="view-val" id="view-url">—</span>
+      </div>
+      <div class="view-row" id="view-notes-row" style="display:none">
+        <span class="view-label">notes</span>
+        <span class="view-val" id="view-notes">—</span>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary btn-sm" onclick="editCurrent()">Edit</button>
+        <button class="btn-danger btn-sm" onclick="deleteCurrent()">Delete</button>
+        <button class="btn-secondary btn-sm" onclick="closeModal('modal-view')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GENERATOR MODAL -->
+  <div class="modal-overlay" id="modal-gen" onclick="if(event.target===this)closeModal('modal-gen')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Password generator</h3>
+        <button class="modal-close" onclick="closeModal('modal-gen')">✕</button>
+      </div>
+      <div class="gen-output" id="gen-output">click generate</div>
+      <div class="field">
+        <label>Length: <strong id="gen-len-val">20</strong></label>
+        <input type="range" min="8" max="64" value="20" id="gen-len"
+          oninput="document.getElementById('gen-len-val').textContent=this.value;genPw()" />
+      </div>
+      <div class="gen-options">
+        <label class="check-label"><input type="checkbox" id="gen-upper" checked onchange="genPw()"> A–Z</label>
+        <label class="check-label"><input type="checkbox" id="gen-lower" checked onchange="genPw()"> a–z</label>
+        <label class="check-label"><input type="checkbox" id="gen-num" checked onchange="genPw()"> 0–9</label>
+        <label class="check-label"><input type="checkbox" id="gen-sym" checked onchange="genPw()"> !@#</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="genPw()">⚡ Regenerate</button>
+        <button class="btn-secondary" onclick="copyGenPw()">Copy</button>
+        <button class="btn-secondary" onclick="useGenPw()">Use in form</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Firebase SDK -->
+  <script type="module" src="js/firebase.js"></script>
+</body>
+</html>
