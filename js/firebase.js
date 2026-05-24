@@ -1,337 +1,244 @@
-/**
- * firebase.js — QuantumVault
- *
- * Flow:
- *  1. User clicks "Sign in with Google" → Firebase Auth popup
- *  2. On auth success → show master password screen
- *  3. User enters master password → PBKDF2 derives AES-256 key
- *  4. Key decrypts vault fetched from Firestore (or creates new vault)
- *  5. All CRUD operations re-encrypt vault → save back to Firestore
- *
- * What Firebase stores per user (document: /vaults/{uid}):
- *   { salt: string, vault: string }
- *   - salt  : base64 random bytes used in PBKDF2
- *   - vault : base64 AES-256-GCM ciphertext of the entries array
- *
- * Master password and CryptoKey NEVER leave the browser.
- */
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-// ─────────────────────────────────────────────────────────────
-// 🔧 PASTE YOUR FIREBASE CONFIG HERE
-// Get it from: Firebase Console → Project Settings → Your apps → SDK setup
-// ─────────────────────────────────────────────────────────────
+// ─── PASTE YOUR FIREBASE CONFIG HERE ───────────────────────
 const firebaseConfig = {
-  apiKey:            "AIzaSyChj-PGpTHZ3hcewBkKydmjM6MgspcLupI",
-  authDomain:        "qubixvault-91ea2.firebaseapp.com",
-  projectId:         "qubixvault-91ea2",
-  storageBucket:     "qubixvault-91ea2.firebasestorage.app",
-  messagingSenderId: "16547854406",
-  appId:             "1:16547854406:web:ca62a9e544057f7162f247"
+  apiKey:            "PASTE_YOUR_API_KEY",
+  authDomain:        "PASTE_YOUR_AUTH_DOMAIN",
+  projectId:         "PASTE_YOUR_PROJECT_ID",
+  storageBucket:     "PASTE_YOUR_STORAGE_BUCKET",
+  messagingSenderId: "PASTE_YOUR_MESSAGING_SENDER_ID",
+  appId:             "PASTE_YOUR_APP_ID"
 };
-// ─────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// ── In-memory state (cleared on lock/sign-out) ──
-let _key     = null;   // CryptoKey (AES-256-GCM)
-let _entries = [];     // decrypted vault entries
-let _uid     = null;   // Firebase user UID
-let _lastGen = '';     // last generated password
-let _viewId  = null;   // currently viewed entry id
+let _key = null, _entries = [], _uid = null, _lastGen = '', _viewId = null;
 
-// ════════════════════════════════════════════════
+// ══════════════════════════════════════
 // CRYPTO
-// ════════════════════════════════════════════════
-
+// ══════════════════════════════════════
 async function deriveKey(password, salt) {
-  const enc = new TextEncoder();
-  const raw = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  const raw = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: 310_000, hash: 'SHA-256' },
-    raw,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
+    raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   );
 }
-
 async function encryptEntries(key, entries) {
-  const iv  = crypto.getRandomValues(new Uint8Array(12));
-  const ct  = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(entries)));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(entries)));
   const buf = new Uint8Array(iv.byteLength + ct.byteLength);
   buf.set(iv); buf.set(new Uint8Array(ct), iv.byteLength);
   return btoa(String.fromCharCode(...buf));
 }
-
 async function decryptEntries(key, b64) {
-  const buf   = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, key, buf.slice(12));
   return JSON.parse(new TextDecoder().decode(plain));
 }
-
-function randomB64(bytes = 32) {
-  const u = crypto.getRandomValues(new Uint8Array(bytes));
-  return btoa(String.fromCharCode(...u));
+function randomB64(n = 32) {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(n))));
 }
 
-// ════════════════════════════════════════════════
-// FIRESTORE HELPERS
-// ════════════════════════════════════════════════
-
+// ══════════════════════════════════════
+// FIRESTORE
+// ══════════════════════════════════════
 async function loadVaultDoc(uid) {
   const snap = await getDoc(doc(db, 'vaults', uid));
   return snap.exists() ? snap.data() : null;
 }
-
-async function saveVaultDoc(uid, salt, encryptedVault) {
-  await setDoc(doc(db, 'vaults', uid), { salt, vault: encryptedVault });
+async function saveVaultDoc(uid, salt, vault) {
+  await setDoc(doc(db, 'vaults', uid), { salt, vault });
 }
 
-// ════════════════════════════════════════════════
+// ══════════════════════════════════════
 // AUTH
-// ════════════════════════════════════════════════
-
-window.signInWithGoogle = async function () {
-  try {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
-    // onAuthStateChanged handles the rest
-  } catch (e) {
-    showToast('Sign-in failed: ' + e.message);
-  }
+// ══════════════════════════════════════
+window.signInWithGoogle = async () => {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch(e) { showToast('Sign-in failed: ' + e.message); }
 };
-
-window.signOut = async function () {
+window.signOut = async () => {
   _key = null; _entries = []; _uid = null;
-  setNavUser(null);
   await fbSignOut(auth);
-  showScreen('login');
+  showScreen('login'); setNavVisible(false);
 };
-
-window.lockVault = function () {
+window.lockVault = () => {
   _key = null; _entries = [];
   showScreen('master');
   document.getElementById('master-input').value = '';
   showToast('Vault locked');
 };
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    showScreen('login');
-    setNavUser(null);
-    return;
-  }
+onAuthStateChanged(auth, async user => {
+  if (!user) { showScreen('login'); setNavVisible(false); return; }
   _uid = user.uid;
-  setNavUser(user);
-
-  // Check if vault exists
   const vaultDoc = await loadVaultDoc(user.uid).catch(() => null);
   const isNew = !vaultDoc;
 
   document.getElementById('master-avatar').src = user.photoURL || '';
-  document.getElementById('master-greeting').textContent = isNew
-    ? `Welcome, ${user.displayName?.split(' ')[0] || 'there'}!`
-    : `Welcome back, ${user.displayName?.split(' ')[0] || 'there'}!`;
-  document.getElementById('master-sub').textContent = isNew
-    ? 'Create a master password to encrypt your vault.'
-    : 'Enter your master password to decrypt your vault.';
+  document.getElementById('master-greeting').textContent =
+    isNew ? `Hi, ${user.displayName?.split(' ')[0] || 'there'}` : `Welcome back`;
+  document.getElementById('master-sub').textContent =
+    isNew ? 'Create a master password to encrypt your vault.'
+          : 'Enter your master password to unlock your vault.';
   document.getElementById('new-vault-hint').style.display = isNew ? 'block' : 'none';
-
+  setNavVisible(false);
   showScreen('master');
-  document.getElementById('master-input').focus();
+  setTimeout(() => document.getElementById('master-input').focus(), 100);
 });
 
-// ════════════════════════════════════════════════
-// MASTER PASSWORD SUBMIT
-// ════════════════════════════════════════════════
-
-window.submitMaster = async function () {
-  const pw    = document.getElementById('master-input').value;
+// ══════════════════════════════════════
+// MASTER PASSWORD
+// ══════════════════════════════════════
+window.submitMaster = async () => {
+  const pw = document.getElementById('master-input').value;
   const errEl = document.getElementById('master-error');
   errEl.textContent = '';
-
   if (pw.length < 6) { showToast('Master password must be at least 6 characters'); return; }
-
   try {
-    showToast('Deriving key…');
+    showToast('Unlocking…');
     const vaultDoc = await loadVaultDoc(_uid);
-
     if (!vaultDoc) {
-      // New vault — create salt, encrypt empty array, save
       const saltB64 = randomB64(32);
-      const salt    = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
-      const key     = await deriveKey(pw, salt);
-      const enc     = await encryptEntries(key, []);
-      await saveVaultDoc(_uid, saltB64, enc);
+      const salt = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
+      const key = await deriveKey(pw, salt);
+      await saveVaultDoc(_uid, saltB64, await encryptEntries(key, []));
       _key = key; _entries = [];
     } else {
-      // Existing vault — derive key from stored salt, decrypt
       const salt = Uint8Array.from(atob(vaultDoc.salt), c => c.charCodeAt(0));
-      const key  = await deriveKey(pw, salt);
-      // This will throw if password is wrong (GCM auth tag mismatch)
-      const entries = await decryptEntries(key, vaultDoc.vault);
-      _key = key; _entries = entries;
+      const key = await deriveKey(pw, salt);
+      _entries = await decryptEntries(key, vaultDoc.vault);
+      _key = key;
     }
-
-    setNavUser(auth.currentUser);
-    showScreen('vault');
-    renderEntries();
-    setSyncStatus('synced');
-    showToast('Vault unlocked!');
-  } catch (e) {
-    if (e.name === 'OperationError') {
-      errEl.textContent = 'Wrong master password.';
-    } else {
-      errEl.textContent = 'Error: ' + e.message;
-    }
+    const user = auth.currentUser;
+    setNavUser(user); setNavVisible(true);
+    showScreen('vault'); renderEntries(); setSyncStatus('synced');
+    showToast('Vault unlocked');
+  } catch(e) {
+    errEl.textContent = e.name === 'OperationError' ? 'Wrong master password.' : 'Error: ' + e.message;
   }
 };
 
-// ════════════════════════════════════════════════
+// ══════════════════════════════════════
 // VAULT CRUD
-// ════════════════════════════════════════════════
-
+// ══════════════════════════════════════
 async function persistVault() {
   setSyncStatus('saving');
   try {
-    const snap   = await getDoc(doc(db, 'vaults', _uid));
-    const saltB64 = snap.data().salt;
-    const enc    = await encryptEntries(_key, _entries);
-    await saveVaultDoc(_uid, saltB64, enc);
+    const snap = await getDoc(doc(db, 'vaults', _uid));
+    await saveVaultDoc(_uid, snap.data().salt, await encryptEntries(_key, _entries));
     setSyncStatus('synced');
-  } catch (e) {
-    setSyncStatus('error');
-    showToast('Sync failed: ' + e.message);
-  }
+  } catch(e) { setSyncStatus('error'); showToast('Sync failed: ' + e.message); }
 }
 
-window.saveEntry = async function () {
+window.saveEntry = async () => {
   const site  = document.getElementById('f-site').value.trim();
   const user  = document.getElementById('f-user').value.trim();
   const pass  = document.getElementById('f-pass').value;
   const url   = document.getElementById('f-url').value.trim();
   const notes = document.getElementById('f-notes').value.trim();
   const editId = document.getElementById('f-id').value;
-
   if (!site) { showToast('Enter a site name'); return; }
   if (!user) { showToast('Enter a username or email'); return; }
   if (!pass) { showToast('Enter a password'); return; }
-
   if (editId) {
     const idx = _entries.findIndex(e => e.id === editId);
     if (idx >= 0) _entries[idx] = { ..._entries[idx], site, user, pass, url, notes, updated: Date.now() };
   } else {
     _entries.unshift({ id: crypto.randomUUID(), site, user, pass, url, notes, created: Date.now(), updated: Date.now() });
   }
-
-  closeModal('modal-add');
-  renderEntries();
+  closeModal('modal-add'); renderEntries();
   await persistVault();
-  showToast(editId ? 'Entry updated!' : 'Password saved!');
+  showToast(editId ? 'Entry updated' : 'Password saved');
 };
 
-window.deleteCurrent = async function () {
-  if (!confirm('Delete this entry? This cannot be undone.')) return;
+window.deleteCurrent = async () => {
+  if (!confirm('Delete this entry?')) return;
   _entries = _entries.filter(e => e.id !== _viewId);
-  closeModal('modal-view');
-  renderEntries();
-  await persistVault();
-  showToast('Deleted');
+  closeModal('modal-view'); renderEntries();
+  await persistVault(); showToast('Deleted');
 };
+window.editCurrent = () => { closeModal('modal-view'); openAddModal(_viewId); };
 
-window.editCurrent = function () {
-  closeModal('modal-view');
-  openAddModal(_viewId);
-};
-
-// ════════════════════════════════════════════════
-// UI HELPERS
-// ════════════════════════════════════════════════
-
+// ══════════════════════════════════════
+// UI
+// ══════════════════════════════════════
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById('screen-' + id);
-  if (el) el.classList.add('active');
+  document.getElementById('screen-' + id)?.classList.add('active');
 }
-
+function setNavVisible(v) {
+  document.getElementById('main-nav').style.display = v ? 'grid' : 'none';
+}
 function setNavUser(user) {
-  const nav = document.getElementById('nav-user');
-  if (!user) { nav.style.display = 'none'; return; }
-  nav.style.display = 'flex';
+  if (!user) return;
   document.getElementById('nav-avatar').src = user.photoURL || '';
-  document.getElementById('nav-name').textContent = user.displayName || user.email;
+  document.getElementById('menu-avatar').src = user.photoURL || '';
+  document.getElementById('menu-name').textContent = user.displayName || '';
+  document.getElementById('menu-email').textContent = user.email || '';
+  document.getElementById('sb-avatar').src = user.photoURL || '';
+  document.getElementById('sb-name').textContent = user.displayName?.split(' ')[0] || '';
 }
-
 function setSyncStatus(state) {
-  const dot   = document.getElementById('sync-dot');
-  const label = document.getElementById('sync-label');
-  dot.className = 'sync-dot' + (state === 'saving' ? ' yellow' : state === 'error' ? ' red' : '');
-  label.textContent = state === 'saving' ? 'saving…' : state === 'error' ? 'sync error' : 'synced';
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (state === 'saving' ? ' saving' : state === 'error' ? ' error' : '');
+  lbl.textContent = state === 'saving' ? 'saving…' : state === 'error' ? 'error' : 'synced';
 }
 
 let _toastTimer;
-window.showToast = function (msg, dur = 2800) {
+window.showToast = (msg, dur = 2500) => {
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
+  el.textContent = msg; el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), dur);
 };
-
-window.closeModal = function (id) {
-  document.getElementById(id).classList.remove('open');
-};
-
-window.toggleVis = function (id) {
+window.closeModal = id => document.getElementById(id).classList.remove('open');
+window.toggleVis = id => {
   const el = document.getElementById(id);
   el.type = el.type === 'password' ? 'text' : 'password';
 };
-
-window.checkStrength = function (input, barId, labelId) {
-  const v = input.value;
-  let s = 0;
-  if (v.length >= 8) s++;
-  if (v.length >= 14) s++;
-  if (/[A-Z]/.test(v)) s++;
-  if (/[0-9]/.test(v)) s++;
+window.checkStrength = (input, barId, labelId) => {
+  const v = input.value; let s = 0;
+  if (v.length >= 8) s++; if (v.length >= 14) s++;
+  if (/[A-Z]/.test(v)) s++; if (/[0-9]/.test(v)) s++;
   if (/[^A-Za-z0-9]/.test(v)) s++;
-  const colors = ['#ef4444','#f97316','#eab308','#22c55e','#4ade80'];
-  const labels = ['very weak','weak','fair','strong','very strong'];
+  const colors = ['#ef4444','#f97316','#eab308','#22c55e','#34d399'];
+  const labels = ['very weak','weak','fair','strong','excellent'];
   const bar = document.getElementById(barId);
-  bar.style.width   = s > 0 ? (s * 20) + '%' : '0';
-  bar.style.background = s > 0 ? colors[s - 1] : '';
+  bar.style.width = s > 0 ? (s * 20) + '%' : '0';
+  bar.style.background = s > 0 ? colors[s-1] : '';
   const lbl = document.getElementById(labelId);
-  if (lbl) lbl.textContent = s > 0 ? labels[s - 1] : '—';
+  if (lbl) lbl.textContent = s > 0 ? labels[s-1] : '';
 };
 
-window.renderEntries = function () {
-  const q       = (document.getElementById('search-input')?.value || '').toLowerCase();
-  const list    = document.getElementById('entries-list');
-  const statEl  = document.getElementById('stat-total');
-  if (statEl) statEl.textContent = _entries.length;
-
-  const filtered = q
-    ? _entries.filter(e => e.site.toLowerCase().includes(q) || e.user.toLowerCase().includes(q))
-    : _entries;
-
+window.renderEntries = () => {
+  const q = (document.getElementById('search-input')?.value || document.getElementById('search-input-mobile')?.value || '').toLowerCase();
+  const countEl = document.getElementById('entry-count');
+  const sbCount = document.getElementById('sb-count');
+  const list = document.getElementById('entries-list');
+  if (sbCount) sbCount.textContent = _entries.length;
+  if (countEl) countEl.textContent = _entries.length + ' item' + (_entries.length !== 1 ? 's' : '');
+  const filtered = q ? _entries.filter(e => e.site.toLowerCase().includes(q) || e.user.toLowerCase().includes(q)) : _entries;
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⬡</div>
-      <p>${q ? 'No results for "' + esc(q) + '"' : 'Your vault is empty.'}</p>
-      <p class="empty-sub">${q ? 'Try a different search.' : 'Click "+ add" to save your first password.'}</p></div>`;
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <p class="empty-title">${q ? 'No results' : 'Your vault is empty'}</p>
+      <p class="empty-sub">${q ? 'Try a different search term.' : 'Add your first password to get started.'}</p>
+    </div>`;
     return;
   }
-
   list.innerHTML = filtered.map(e => `
     <div class="entry-card" onclick="viewEntry('${e.id}')">
-      <div class="entry-avatar">${(e.site[0] || '?').toUpperCase()}</div>
+      <div class="entry-avatar">${e.site[0].toUpperCase()}</div>
       <div class="entry-info">
         <div class="entry-site">${esc(e.site)}</div>
         <div class="entry-user">${esc(e.user)}</div>
@@ -343,47 +250,41 @@ window.renderEntries = function () {
     </div>`).join('');
 };
 
-window.viewEntry = function (id) {
-  const e = _entries.find(x => x.id === id);
-  if (!e) return;
+window.syncSearch = (input) => {
+  const other = input.id === 'search-input' ? 'search-input-mobile' : 'search-input';
+  const otherEl = document.getElementById(other);
+  if (otherEl) otherEl.value = input.value;
+  renderEntries();
+};
+
+window.viewEntry = id => {
+  const e = _entries.find(x => x.id === id); if (!e) return;
   _viewId = id;
   document.getElementById('view-title').textContent = e.site;
-  document.getElementById('view-user').textContent  = e.user;
-  document.getElementById('view-pass-disp').textContent = '••••••••';
+  document.getElementById('view-avatar-icon').textContent = e.site[0].toUpperCase();
+  document.getElementById('view-user').textContent = e.user;
+  document.getElementById('view-pass-disp').textContent = '••••••••••••';
   document.getElementById('view-pass-disp').style.letterSpacing = '';
-  document.getElementById('view-pass-real').value   = e.pass;
-  const urlRow   = document.getElementById('view-url-row');
+  document.getElementById('view-pass-real').value = e.pass;
+  const urlRow = document.getElementById('view-url-row');
   const notesRow = document.getElementById('view-notes-row');
-  if (e.url)   { urlRow.style.display = 'flex';   document.getElementById('view-url').textContent   = e.url; }
-  else           urlRow.style.display = 'none';
+  if (e.url) { urlRow.style.display = 'flex'; document.getElementById('view-url').textContent = e.url; document.getElementById('view-url-link').href = e.url; }
+  else urlRow.style.display = 'none';
   if (e.notes) { notesRow.style.display = 'flex'; document.getElementById('view-notes').textContent = e.notes; }
-  else           notesRow.style.display = 'none';
+  else notesRow.style.display = 'none';
   document.getElementById('modal-view').classList.add('open');
 };
-
-window.toggleViewPass = function () {
+window.toggleViewPass = () => {
   const disp = document.getElementById('view-pass-disp');
   const real = document.getElementById('view-pass-real').value;
-  if (disp.textContent === '••••••••') { disp.textContent = real; disp.style.letterSpacing = '0.05em'; }
-  else { disp.textContent = '••••••••'; disp.style.letterSpacing = ''; }
+  if (disp.textContent === '••••••••••••') { disp.textContent = real; disp.style.letterSpacing = '0.04em'; }
+  else { disp.textContent = '••••••••••••'; disp.style.letterSpacing = ''; }
 };
+window.copyHidden = () => navigator.clipboard.writeText(document.getElementById('view-pass-real').value).then(() => showToast('Password copied'));
+window.copyEl = id => navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => showToast('Copied'));
+window.copyPass = id => { const e = _entries.find(x => x.id === id); if(e) navigator.clipboard.writeText(e.pass).then(() => showToast('Password copied')); };
 
-window.copyHidden = function () {
-  navigator.clipboard.writeText(document.getElementById('view-pass-real').value)
-    .then(() => showToast('Password copied!'));
-};
-
-window.copyEl = function (id) {
-  navigator.clipboard.writeText(document.getElementById(id).textContent)
-    .then(() => showToast('Copied!'));
-};
-
-window.copyPass = function (id) {
-  const e = _entries.find(x => x.id === id);
-  if (e) navigator.clipboard.writeText(e.pass).then(() => showToast('Password copied!'));
-};
-
-window.openAddModal = function (editId) {
+window.openAddModal = (editId) => {
   const e = editId ? _entries.find(x => x.id === editId) : null;
   document.getElementById('modal-add-title').textContent = e ? 'Edit entry' : 'Add password';
   document.getElementById('f-site').value  = e?.site  || '';
@@ -393,22 +294,19 @@ window.openAddModal = function (editId) {
   document.getElementById('f-notes').value = e?.notes || '';
   document.getElementById('f-id').value    = editId   || '';
   document.getElementById('f-bar').style.width = '0';
-  document.getElementById('f-slabel').textContent = '—';
+  document.getElementById('f-slabel').textContent = '';
   document.getElementById('modal-add').classList.add('open');
 };
-
-window.filterAll = function (btn) {
-  document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderEntries();
+window.filterAll = btn => {
+  document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); renderEntries();
 };
 
-// ── Generator ──
-window.openGenModal = function () { genPw(); document.getElementById('modal-gen').classList.add('open'); };
-
-window.genPw = function () {
-  const len  = parseInt(document.getElementById('gen-len').value);
-  let chars  = '';
+// Generator
+window.openGenModal = () => { genPw(); document.getElementById('modal-gen').classList.add('open'); };
+window.genPw = () => {
+  const len = parseInt(document.getElementById('gen-len').value);
+  let chars = '';
   if (document.getElementById('gen-upper').checked) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   if (document.getElementById('gen-lower').checked) chars += 'abcdefghijklmnopqrstuvwxyz';
   if (document.getElementById('gen-num').checked)   chars += '0123456789';
@@ -419,18 +317,44 @@ window.genPw = function () {
   _lastGen = Array.from(arr).map(n => chars[n % chars.length]).join('');
   document.getElementById('gen-output').textContent = _lastGen;
 };
+window.copyGenPw = () => _lastGen && navigator.clipboard.writeText(_lastGen).then(() => showToast('Copied'));
+window.useGenPw = () => {
+  if (!_lastGen) return;
+  closeModal('modal-gen'); openAddModal();
+  setTimeout(() => { document.getElementById('f-pass').value = _lastGen; checkStrength(document.getElementById('f-pass'),'f-bar','f-slabel'); }, 50);
+};
+window.fillGenerated = () => {
+  if (_lastGen) { document.getElementById('f-pass').value = _lastGen; checkStrength(document.getElementById('f-pass'),'f-bar','f-slabel'); }
+  else openGenModal();
+};
 
-window.copyGenPw   = function () { if (_lastGen) navigator.clipboard.writeText(_lastGen).then(() => showToast('Copied!')); };
-window.useGenPw    = function () { if (!_lastGen) return; closeModal('modal-gen'); openAddModal(); setTimeout(() => { document.getElementById('f-pass').value = _lastGen; checkStrength(document.getElementById('f-pass'),'f-bar','f-slabel'); }, 50); };
-window.fillGenerated = function () { if (_lastGen) { document.getElementById('f-pass').value = _lastGen; checkStrength(document.getElementById('f-pass'),'f-bar','f-slabel'); } else openGenModal(); };
-
-function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-// ── Keyboard shortcuts ──
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    const s = document.getElementById('search-input');
-    if (s && _key) { e.preventDefault(); s.focus(); }
+// User menu
+window.toggleUserMenu = () => document.getElementById('user-menu').classList.toggle('open');
+document.addEventListener('click', e => {
+  if (!document.getElementById('nav-menu-wrap')?.contains(e.target)) {
+    document.getElementById('user-menu')?.classList.remove('open');
   }
 });
+
+// Sidebar (mobile)
+window.toggleSidebar = () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+};
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+    document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-overlay')?.classList.remove('open');
+    document.getElementById('user-menu')?.classList.remove('open');
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k' && _key) {
+    e.preventDefault();
+    const s = document.getElementById('search-input') || document.getElementById('search-input-mobile');
+    s?.focus();
+  }
+});
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
