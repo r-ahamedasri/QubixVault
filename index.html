@@ -6,50 +6,125 @@
   <title>QubixVault</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%236C63FF'/><text y='.9em' font-size='65' x='15'>🔒</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23dc2626'/><text y='.85em' font-size='64' x='18'>🔒</text></svg>">
 </head>
 <body>
 
-  <div class="bg-mesh" aria-hidden="true"></div>
-
-  <!-- NAV -->
-  <nav class="nav" id="main-nav" style="display:none">
-    <div class="nav-brand">
-      <div class="nav-logo">Q</div>
-      <span class="nav-title">QubixVault</span>
+<!-- ═══════════════════════════════════════
+     LOGIN PAGE
+════════════════════════════════════════ -->
+<div id="page-login" class="page active">
+  <div class="login-bg"></div>
+  <div class="login-center">
+    <div class="login-card">
+      <div class="brand">
+        <div class="brand-mark">Q</div>
+        <div>
+          <div class="brand-name">QubixVault</div>
+          <div class="brand-tagline">Secure Password Manager</div>
+        </div>
+      </div>
+      <div class="login-divider"></div>
+      <p class="login-desc">Sign in with your Google account to access your encrypted password vault.</p>
+      <button class="google-btn" onclick="signInWithGoogle()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+      <p class="login-note">Your passwords are encrypted before leaving your device. Nobody can read your vault — not even us.</p>
     </div>
-    <div class="nav-center" id="nav-search-wrap">
-      <div class="nav-search">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="search-input" placeholder="Search passwords…" oninput="renderEntries()" />
-        <kbd>⌘K</kbd>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MASTER PASSWORD PAGE
+════════════════════════════════════════ -->
+<div id="page-master" class="page">
+  <div class="login-bg"></div>
+  <div class="login-center">
+    <div class="login-card">
+      <div class="master-user">
+        <img id="master-avatar" src="" alt="" class="master-avatar" />
+        <div>
+          <div id="master-name" class="master-name"></div>
+          <div id="master-email" class="master-email"></div>
+        </div>
+      </div>
+      <div class="login-divider"></div>
+      <h2 id="master-title" class="master-title">Unlock your vault</h2>
+      <p id="master-sub" class="master-sub">Enter your master password to decrypt your passwords.</p>
+
+      <div id="new-hint" class="new-hint" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        First time setup — this password encrypts your vault. It cannot be recovered if forgotten.
+      </div>
+
+      <div class="field">
+        <label class="field-label">Master Password</label>
+        <div class="field-wrap">
+          <input type="password" id="master-input" class="field-input" placeholder="Enter master password"
+            onkeydown="if(event.key==='Enter')submitMaster()" autocomplete="current-password" />
+          <button class="eye-btn" onclick="toggleVis('master-input')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div id="master-error" class="field-error"></div>
+      </div>
+
+      <button class="btn-red btn-full" onclick="submitMaster()">Unlock Vault</button>
+      <button class="btn-link" onclick="signOut()">← Use a different account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     VAULT PAGE
+════════════════════════════════════════ -->
+<div id="page-vault" class="page">
+
+  <!-- TOP NAV -->
+  <nav class="topnav">
+    <div class="topnav-left">
+      <!-- Mobile menu button -->
+      <button class="icon-btn-nav" id="menu-toggle" onclick="toggleSidebar()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="nav-brand">
+        <div class="nav-mark">Q</div>
+        <span class="nav-name">QubixVault</span>
       </div>
     </div>
-    <div class="nav-right">
-      <span class="sync-pill" id="sync-pill">
+    <div class="topnav-mid">
+      <div class="nav-search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="search-desk" placeholder="Search passwords…" oninput="onSearch(this.value)" />
+      </div>
+    </div>
+    <div class="topnav-right">
+      <div class="sync-badge" id="sync-badge">
         <span class="sync-dot" id="sync-dot"></span>
-        <span id="sync-label">synced</span>
-      </span>
-      <div class="nav-menu-wrap">
-        <button class="nav-avatar-btn" onclick="toggleUserMenu()" id="nav-avatar-btn">
-          <img id="nav-avatar" src="" alt="" />
+        <span id="sync-text">synced</span>
+      </div>
+      <div class="user-dropdown">
+        <button class="user-trigger" onclick="toggleMenu()">
+          <img id="nav-avatar" src="" alt="" class="nav-avatar-img" />
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div class="user-menu" id="user-menu">
-          <div class="user-menu-header">
-            <img id="menu-avatar" src="" alt="" />
+        <div class="dropdown-menu" id="dropdown-menu">
+          <div class="dropdown-header">
+            <img id="drop-avatar" src="" alt="" />
             <div>
-              <div class="menu-name" id="menu-name"></div>
-              <div class="menu-email" id="menu-email"></div>
+              <div id="drop-name" class="drop-name"></div>
+              <div id="drop-email" class="drop-email"></div>
             </div>
           </div>
-          <div class="user-menu-divider"></div>
-          <button class="user-menu-item" onclick="lockVault();toggleUserMenu()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <div class="dropdown-sep"></div>
+          <button class="drop-item" onclick="lockVault();closeMenu()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Lock vault
           </button>
-          <button class="user-menu-item danger" onclick="signOut()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <button class="drop-item drop-danger" onclick="signOut()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign out
           </button>
         </div>
@@ -57,262 +132,216 @@
     </div>
   </nav>
 
-  <!-- LOGIN SCREEN -->
-  <main id="screen-login" class="screen active">
-    <div class="auth-wrap">
-      <div class="auth-card">
-        <div class="auth-logo">
-          <div class="auth-logo-icon">Q</div>
-        </div>
-        <h1 class="auth-title">QubixVault</h1>
-        <p class="auth-sub">Your personal password vault.<br/>Secure, private, always accessible.</p>
-        <button class="btn-google" onclick="signInWithGoogle()">
-          <svg width="18" height="18" viewBox="0 0 48 48">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-          </svg>
-          Continue with Google
-        </button>
-        <p class="auth-legal">By continuing, you agree that your data is encrypted client-side before storage.</p>
-      </div>
-    </div>
-  </main>
+  <!-- BODY BELOW NAV -->
+  <div class="vault-body">
 
-  <!-- MASTER PASSWORD SCREEN -->
-  <main id="screen-master" class="screen">
-    <div class="auth-wrap">
-      <div class="auth-card">
-        <img id="master-avatar" src="" alt="" class="master-avatar" />
-        <h1 class="auth-title" id="master-greeting">Welcome back</h1>
-        <p class="auth-sub" id="master-sub">Enter your master password to unlock your vault.</p>
-        <div class="field">
-          <label>Master password</label>
-          <div class="input-wrap">
-            <input type="password" id="master-input" placeholder="Enter master password"
-              onkeydown="if(event.key==='Enter')submitMaster()" autocomplete="current-password" />
-            <button class="input-btn" onclick="toggleVis('master-input')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-        </div>
-        <p class="field-error" id="master-error"></p>
-        <div class="new-vault-hint" id="new-vault-hint" style="display:none">
-          First time? This master password encrypts your vault — remember it, it cannot be recovered.
-        </div>
-        <button class="btn-primary btn-full" onclick="submitMaster()">Unlock vault</button>
-        <button class="btn-text" onclick="signOut()">Sign in with a different account</button>
-      </div>
-    </div>
-  </main>
-
-  <!-- VAULT SCREEN -->
-  <main id="screen-vault" class="screen">
-    <div class="vault-layout">
-
-      <!-- SIDEBAR -->
-      <aside class="sidebar" id="sidebar">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-inner">
         <div class="sidebar-section">
-          <p class="sidebar-label">Vault</p>
-          <button class="sidebar-item active" id="sb-all" onclick="filterAll(this)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <div class="sidebar-section-label">Vault</div>
+          <button class="sidebar-link active" id="link-all" onclick="filterAll(this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             All passwords
-            <span class="sidebar-count" id="sb-count">0</span>
+            <span class="sidebar-badge" id="sb-count">0</span>
           </button>
         </div>
         <div class="sidebar-section">
-          <p class="sidebar-label">Actions</p>
-          <button class="sidebar-item" onclick="openAddModal()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <div class="sidebar-section-label">Tools</div>
+          <button class="sidebar-link" onclick="openAdd();closeSidebar()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add password
           </button>
-          <button class="sidebar-item" onclick="openGenModal()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <button class="sidebar-link" onclick="openGen();closeSidebar()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             Generator
           </button>
         </div>
         <div class="sidebar-footer">
-          <div class="sidebar-user" onclick="toggleUserMenu()">
-            <img id="sb-avatar" src="" alt="" class="sb-avatar" />
-            <span id="sb-name" class="sb-name"></span>
-          </div>
+          <img id="sb-avatar" src="" alt="" class="sb-av" />
+          <span id="sb-name" class="sb-nm"></span>
         </div>
-      </aside>
-
-      <!-- MAIN -->
-      <div class="vault-main">
-        <!-- Mobile toolbar -->
-        <div class="mobile-toolbar">
-          <button class="mobile-menu-btn" onclick="toggleSidebar()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <span class="mobile-logo">QubixVault</span>
-          <button class="mobile-add-btn" onclick="openAddModal()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </div>
-
-        <!-- Desktop toolbar -->
-        <div class="vault-toolbar">
-          <div class="toolbar-left">
-            <h2 class="toolbar-title">All passwords</h2>
-            <span class="entry-count" id="entry-count">0 items</span>
-          </div>
-          <button class="btn-primary btn-sm" onclick="openAddModal()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add
-          </button>
-        </div>
-
-        <!-- Mobile search -->
-        <div class="mobile-search">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="search-input-mobile" placeholder="Search…" oninput="syncSearch(this)" />
-        </div>
-
-        <div id="entries-list" class="entries-list"></div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Mobile FAB -->
-    <button class="fab" onclick="openAddModal()" aria-label="Add password">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-  </main>
+    <!-- SIDEBAR OVERLAY -->
+    <div class="sb-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
 
-  <!-- SIDEBAR OVERLAY (mobile) -->
-  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      <!-- Mobile search -->
+      <div class="mobile-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="search-mob" placeholder="Search passwords…" oninput="onSearch(this.value)" />
+      </div>
 
-  <!-- ADD/EDIT MODAL -->
-  <div class="modal-overlay" id="modal-add" onclick="if(event.target===this)closeModal('modal-add')">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="modal-add-title">Add password</h3>
-        <button class="modal-close" onclick="closeModal('modal-add')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <!-- Toolbar -->
+      <div class="content-toolbar">
+        <div class="toolbar-info">
+          <h2 class="toolbar-heading">All passwords</h2>
+          <span class="toolbar-count" id="toolbar-count">0 items</span>
+        </div>
+        <button class="btn-red btn-sm" onclick="openAdd()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add
         </button>
       </div>
-      <div class="modal-body">
-        <div class="field"><label>Site / App <span class="req">*</span></label><input type="text" id="f-site" placeholder="e.g. Netflix" /></div>
-        <div class="field"><label>Username or Email <span class="req">*</span></label><input type="text" id="f-user" placeholder="you@example.com" autocomplete="off" /></div>
-        <div class="field">
-          <label>Password <span class="req">*</span></label>
-          <div class="input-wrap">
-            <input type="password" id="f-pass" placeholder="Password" oninput="checkStrength(this,'f-bar','f-slabel')" autocomplete="new-password" />
-            <button class="input-btn" onclick="toggleVis('f-pass')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <button class="input-btn" style="right:2.6rem" onclick="fillGenerated()" title="Generate password">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            </button>
-          </div>
-          <div class="strength-wrap">
-            <div class="strength-track"><div class="strength-bar" id="f-bar"></div></div>
-            <span class="strength-label" id="f-slabel"></span>
-          </div>
-        </div>
-        <div class="field"><label>Website URL</label><input type="text" id="f-url" placeholder="https://" /></div>
-        <div class="field"><label>Notes</label><textarea id="f-notes" rows="3" placeholder="Any extra info…"></textarea></div>
-        <input type="hidden" id="f-id" />
-      </div>
-      <div class="modal-footer">
-        <button class="btn-primary" onclick="saveEntry()">Save</button>
-        <button class="btn-ghost" onclick="closeModal('modal-add')">Cancel</button>
-      </div>
-    </div>
+
+      <!-- Entry list -->
+      <div class="entry-list" id="entry-list"></div>
+    </main>
   </div>
 
-  <!-- VIEW MODAL -->
-  <div class="modal-overlay" id="modal-view" onclick="if(event.target===this)closeModal('modal-view')">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="view-header-inner">
-          <div class="view-avatar" id="view-avatar-icon">A</div>
-          <h3 id="view-title">—</h3>
-        </div>
-        <button class="modal-close" onclick="closeModal('modal-view')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+  <!-- FAB (mobile) -->
+  <button class="fab" onclick="openAdd()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MODAL: ADD / EDIT
+════════════════════════════════════════ -->
+<div class="modal-bg" id="modal-add" onclick="if(event.target===this)closeModal('modal-add')">
+  <div class="modal">
+    <div class="modal-top">
+      <h3 id="add-title">Add password</h3>
+      <button class="modal-x" onclick="closeModal('modal-add')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">Site / App <span class="req">*</span></label>
+        <input type="text" id="f-site" class="field-input" placeholder="e.g. Netflix" />
       </div>
-      <div class="modal-body">
-        <div class="detail-row">
-          <span class="detail-label">Username</span>
-          <div class="detail-val-wrap">
-            <span class="detail-val" id="view-user">—</span>
-            <button class="icon-btn" onclick="copyEl('view-user')" title="Copy">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
-          </div>
+      <div class="field">
+        <label class="field-label">Username or Email <span class="req">*</span></label>
+        <input type="text" id="f-user" class="field-input" placeholder="you@example.com" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label class="field-label">Password <span class="req">*</span></label>
+        <div class="field-wrap">
+          <input type="password" id="f-pass" class="field-input" placeholder="Password"
+            oninput="strengthCheck(this,'s-bar','s-lbl')" autocomplete="new-password" />
+          <button class="eye-btn" onclick="toggleVis('f-pass')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="eye-btn" style="right:2.4rem" onclick="injectGen()" title="Generate">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </button>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Password</span>
-          <div class="detail-val-wrap">
-            <span class="detail-val mono" id="view-pass-disp">••••••••••••</span>
-            <button class="icon-btn" onclick="toggleViewPass()" title="Show/hide">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <button class="icon-btn" onclick="copyHidden()" title="Copy">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
-          </div>
-        </div>
-        <input type="hidden" id="view-pass-real" />
-        <div class="detail-row" id="view-url-row" style="display:none">
-          <span class="detail-label">URL</span>
-          <div class="detail-val-wrap">
-            <span class="detail-val small" id="view-url">—</span>
-            <a id="view-url-link" href="#" target="_blank" rel="noopener" class="icon-btn" title="Open">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            </a>
-          </div>
-        </div>
-        <div class="detail-row" id="view-notes-row" style="display:none">
-          <span class="detail-label">Notes</span>
-          <span class="detail-val small" id="view-notes">—</span>
+        <div class="strength-row">
+          <div class="strength-track"><div class="strength-fill" id="s-bar"></div></div>
+          <span class="strength-txt" id="s-lbl"></span>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-primary btn-sm" onclick="editCurrent()">Edit</button>
-        <button class="btn-danger btn-sm" onclick="deleteCurrent()">Delete</button>
-        <button class="btn-ghost btn-sm" onclick="closeModal('modal-view')">Close</button>
+      <div class="field">
+        <label class="field-label">Website URL</label>
+        <input type="text" id="f-url" class="field-input" placeholder="https://" />
       </div>
+      <div class="field">
+        <label class="field-label">Notes</label>
+        <textarea id="f-notes" class="field-input field-ta" rows="3" placeholder="Optional notes…"></textarea>
+      </div>
+      <input type="hidden" id="f-id" />
+    </div>
+    <div class="modal-foot">
+      <button class="btn-red" onclick="saveEntry()">Save</button>
+      <button class="btn-gray" onclick="closeModal('modal-add')">Cancel</button>
     </div>
   </div>
+</div>
 
-  <!-- GENERATOR MODAL -->
-  <div class="modal-overlay" id="modal-gen" onclick="if(event.target===this)closeModal('modal-gen')">
-    <div class="modal modal-sm">
-      <div class="modal-header">
-        <h3>Password generator</h3>
-        <button class="modal-close" onclick="closeModal('modal-gen')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+<!-- ═══════════════════════════════════════
+     MODAL: VIEW
+════════════════════════════════════════ -->
+<div class="modal-bg" id="modal-view" onclick="if(event.target===this)closeModal('modal-view')">
+  <div class="modal">
+    <div class="modal-top">
+      <div class="view-title-row">
+        <div class="view-av" id="view-av">A</div>
+        <h3 id="view-site-name">—</h3>
       </div>
-      <div class="modal-body">
-        <div class="gen-output" id="gen-output">—</div>
-        <div class="field">
-          <div class="range-label"><label>Length</label><strong id="gen-len-val">20</strong></div>
-          <input type="range" min="8" max="64" value="20" id="gen-len"
-            oninput="document.getElementById('gen-len-val').textContent=this.value;genPw()" />
-        </div>
-        <div class="gen-checks">
-          <label class="check-label"><input type="checkbox" id="gen-upper" checked onchange="genPw()"><span>A–Z</span></label>
-          <label class="check-label"><input type="checkbox" id="gen-lower" checked onchange="genPw()"><span>a–z</span></label>
-          <label class="check-label"><input type="checkbox" id="gen-num" checked onchange="genPw()"><span>0–9</span></label>
-          <label class="check-label"><input type="checkbox" id="gen-sym" checked onchange="genPw()"><span>!@#</span></label>
+      <button class="modal-x" onclick="closeModal('modal-view')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-item">
+        <span class="detail-key">Username</span>
+        <div class="detail-val-row">
+          <span class="detail-val" id="v-user"></span>
+          <button class="copy-pill" onclick="copyById('v-user')">Copy</button>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-primary btn-sm" onclick="genPw()">Regenerate</button>
-        <button class="btn-secondary btn-sm" onclick="copyGenPw()">Copy</button>
-        <button class="btn-secondary btn-sm" onclick="useGenPw()">Use</button>
+      <div class="detail-item">
+        <span class="detail-key">Password</span>
+        <div class="detail-val-row">
+          <span class="detail-val mono" id="v-pass-show">••••••••••</span>
+          <button class="copy-pill" onclick="toggleShowPass()">Show</button>
+          <button class="copy-pill" onclick="copyPass()">Copy</button>
+        </div>
+      </div>
+      <input type="hidden" id="v-pass-real" />
+      <div class="detail-item" id="v-url-row" style="display:none">
+        <span class="detail-key">URL</span>
+        <div class="detail-val-row">
+          <span class="detail-val small" id="v-url"></span>
+          <a id="v-url-link" href="#" target="_blank" rel="noopener" class="copy-pill">Open</a>
+        </div>
+      </div>
+      <div class="detail-item" id="v-notes-row" style="display:none">
+        <span class="detail-key">Notes</span>
+        <span class="detail-val small" id="v-notes"></span>
       </div>
     </div>
+    <div class="modal-foot">
+      <button class="btn-red btn-sm" onclick="editCurrent()">Edit</button>
+      <button class="btn-danger btn-sm" onclick="deleteCurrent()">Delete</button>
+      <button class="btn-gray btn-sm" onclick="closeModal('modal-view')">Close</button>
+    </div>
   </div>
+</div>
 
-  <div class="toast" id="toast"></div>
+<!-- ═══════════════════════════════════════
+     MODAL: GENERATOR
+════════════════════════════════════════ -->
+<div class="modal-bg" id="modal-gen" onclick="if(event.target===this)closeModal('modal-gen')">
+  <div class="modal modal-sm">
+    <div class="modal-top">
+      <h3>Password Generator</h3>
+      <button class="modal-x" onclick="closeModal('modal-gen')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="gen-output" id="gen-out">—</div>
+      <div class="field">
+        <div class="range-row">
+          <label class="field-label">Length</label>
+          <strong class="range-val" id="gen-len-val">20</strong>
+        </div>
+        <input type="range" min="8" max="64" value="20" id="gen-len"
+          oninput="document.getElementById('gen-len-val').textContent=this.value;genPw()" />
+      </div>
+      <div class="gen-checks">
+        <label class="check"><input type="checkbox" id="g-up" checked onchange="genPw()"><span>A–Z</span></label>
+        <label class="check"><input type="checkbox" id="g-lo" checked onchange="genPw()"><span>a–z</span></label>
+        <label class="check"><input type="checkbox" id="g-nu" checked onchange="genPw()"><span>0–9</span></label>
+        <label class="check"><input type="checkbox" id="g-sy" checked onchange="genPw()"><span>!@#</span></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-red btn-sm" onclick="genPw()">Regenerate</button>
+      <button class="btn-gray btn-sm" onclick="copyGen()">Copy</button>
+      <button class="btn-gray btn-sm" onclick="useGen()">Use this</button>
+    </div>
+  </div>
+</div>
 
-  <script type="module" src="js/firebase.js"></script>
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
