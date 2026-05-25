@@ -8,12 +8,12 @@ import { getFirestore, doc, getDoc, setDoc }
    Get it from Firebase Console → Project Settings → Your apps
 ──────────────────────────────────────────────────────────── */
 const firebaseConfig = {
-  apiKey:            "PASTE_YOUR_API_KEY",
-  authDomain:        "PASTE_YOUR_AUTH_DOMAIN",
-  projectId:         "PASTE_YOUR_PROJECT_ID",
-  storageBucket:     "PASTE_YOUR_STORAGE_BUCKET",
-  messagingSenderId: "PASTE_YOUR_MESSAGING_SENDER_ID",
-  appId:             "PASTE_YOUR_APP_ID"
+  apiKey:            "AIzaSyChj-PGpTHZ3hcewBkKydmjM6MgspcLupI",
+  authDomain:        "qubixvault-91ea2.firebaseapp.com",
+  projectId:         "qubixvault-91ea2",
+  storageBucket:     "qubixvault-91ea2.firebasestorage.app",
+  messagingSenderId: "16547854406",
+  appId:             "1:16547854406:web:ca62a9e544057f7162f247"
 };
 /* ────────────────────────────────────────────────────────── */
 
